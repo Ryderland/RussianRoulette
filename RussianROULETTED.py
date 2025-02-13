@@ -17,37 +17,34 @@ class Deck:
         random.shuffle(self.cards)
 
     def populate_deck(self):
-        # Define card frequencies based on rarity.
-        # A higher number means a more common card.
-        cards_config = {
-            "Respin Chamber": 15,
-            "Constitution": 3,              # Grants extra life for 3 rounds OR immediate elimination of a target.
-            "Peek at Chamber": 8,
-            "Swap Hand with Player": 5,
-            "Skip": 15,
-            "Add Bullet": 15,
-            "Add 2 Bullet": 5,
-            "Remove Bullet": 5,
-            "Add Bullet Next Turn": 4,
-            "Add 2 Bullet Next Turn": 3,
-            "Remove Bullet Next Turn": 4,
-            "Safe Trigger Pull": 4,
-            "Reverse Order": 8,
-            "Play 2 Cards Next Round": 4,
-            "Choose Bullet Order": 3,
-            "Force Next Player to Fire Again": 4,
-            "Block Card": 6,
-            "Force Chosen Player to Fire Instead": 3,
-            "Look at Player Hand": 5,
-            "Steal Card": 3,               # Steal a random card from another player.
-            "Force Reshuffle Hand": 2,
-            "Duplicate Last Card": 2,
-            "Extra Draw": 8,
-            "Lucky Charm": 4,
-            "Miracle": 1
+        # New card names and (equal) frequencies – exactly as provided.
+        new_cards_config = {
+            "Respin": 4,
+            "Focused action": 4,
+            "Domain Expansion: Casino": 4,
+            "Peek’ n see": 4,
+            "Gimme those": 4,
+            "Nope": 4,
+            "Just 1 more": 4,
+            "Bullets!!!": 4,
+            "Get that out of here": 4,
+            "Another just for you": 4,
+            "And you get a bullet and you get a bullet and you….": 4,
+            "You owe me…": 4,
+            "Can’t touch this": 4,
+            "Reverse": 4,
+            "Ambidextrous": 4,
+            "Master of fate": 4,
+            "No balls": 4,
+            "Enhanced nope": 4,
+            "Give Jimmy a chance": 4,
+            "Whatcha u’ got of there": 4,
+            "I think I’ll be take this": 4,
+            "Let’s go gambling": 4,
+            "Anotha’ time": 4
         }
         self.cards = []
-        for card_name, count in cards_config.items():
+        for card_name, count in new_cards_config.items():
             self.cards.extend([Card(card_name) for _ in range(count)])
         random.shuffle(self.cards)
     
@@ -65,16 +62,15 @@ class Deck:
 class Player:
     def __init__(self, name, deck):
         self.name = name
-        self.hand = deck.draw(5)
+        # Start with 4 cards instead of 5.
+        self.hand = deck.draw(4)
         # One-turn or multi-turn effects:
-        self.lucky_charm = False
-        self.safe_trigger = False
-        self.miracle = False
-        self.extra_life_rounds = 0          # From Constitution card.
-        self.pending_bullet_modifier = 0    # Delayed effect: positive adds bullet(s), negative removes bullet(s).
-        self.forced_extra_turn = False      # Flag to force an extra trigger pull.
-        self.extra_cards_next_round = 0     # Allows extra card plays next turn.
-        self.block_active = False           # Blocks a targeted card effect.
+        self.safe_trigger = False       # For "Can’t touch this"
+        self.extra_life_rounds = 0      # From "Focused action"
+        self.pending_bullet_modifier = 0    # Delayed bullet modifications
+        self.forced_extra_turn = False      # Force extra trigger pull
+        self.extra_cards_next_round = 0     # Extra card plays next round
+        self.block_active = False           # For "Enhanced nope"
 
     def discard_and_draw(self, indices, deck):
         indices = sorted(indices, reverse=True)
@@ -83,6 +79,12 @@ class Player:
                 del self.hand[i]
         new_cards = deck.draw(len(indices))
         self.hand.extend(new_cards)
+    
+    def refill_hand(self, deck):
+        # Ensure the hand always has exactly 4 cards.
+        needed = 4 - len(self.hand)
+        if needed > 0:
+            self.hand.extend(deck.draw(needed))
 
     def show_hand(self):
         for idx, card in enumerate(self.hand):
@@ -133,7 +135,7 @@ class Game:
         self.revolver = Revolver()
         self.active_players = self.players[:]  # Players still in the game.
         self.current_player_index = 0
-        self.last_card_played = None  # To support duplication effects.
+        self.last_card_played = None  # To support replication effects.
 
     def choose_target(self, current_player, prompt="Choose a target by index:"):
         # List all active players excluding current_player.
@@ -172,31 +174,11 @@ class Game:
 
         if trigger_result:
             if player.safe_trigger:
-                print("Bang! But your Safe Trigger Pull card protects you!")
+                print("Bang! But your 'Can’t touch this' protects you!")
                 player.safe_trigger = False
-                # Clear one-turn effects.
-                player.lucky_charm = False
-                player.miracle = False
-                return "survived"
-            elif player.lucky_charm:
-                print("Bang! But your Lucky Charm card gives you a fighting chance!")
-                player.lucky_charm = False
-                time.sleep(1)
-                if random.choice([True, False]):
-                    print("The coin toss favors you. You survive!")
-                    return "survived"
-                else:
-                    print("The coin toss does not favor you. You are eliminated!")
-                    return "eliminated"
-            elif player.miracle:
-                print("Bang! A bullet roars... but then, a miracle occurs!")
-                prev_chamber = (self.revolver.current_chamber - 1) % self.revolver.num_chambers
-                self.revolver.chambers[prev_chamber] = False
-                player.miracle = False
-                print("The bullet disintegrates before it can harm you!")
                 return "survived"
             elif player.extra_life_rounds > 0:
-                print("Bang! But your Constitution card extra life saves you!")
+                print("Bang! But your extra life from 'Focused action' saves you!")
                 player.extra_life_rounds = 0
                 return "survived"
             else:
@@ -208,15 +190,14 @@ class Game:
             return "survived"
 
     def apply_card_effect(self, card, player):
-        # Save this card as the last card played (unless it’s a duplicate effect to avoid recursion).
-        if card.name != "Duplicate Last Card":
+        # For replication purposes, do not update the last played card if using "Anotha’ time".
+        if card.name != "Anotha’ time":
             self.last_card_played = card
 
-        if card.name == "Respin Chamber":
+        if card.name == "Respin":
             self.revolver.spin()
             print("  -> The revolver has been respun!")
-        elif card.name == "Constitution":
-            # Let the player choose to immediately eliminate a target or gain extra life.
+        elif card.name == "Focused action":
             choice = input("Do you want to (k)ill a chosen player immediately or gain extra life for 3 rounds? (k/e): ").strip().lower()
             if choice == 'k':
                 target = self.choose_target(player, "Choose a target to eliminate: ")
@@ -225,19 +206,28 @@ class Game:
                         print(f"  -> {target.name} blocked the effect!")
                         target.block_active = False
                     else:
-                        print(f"  -> {target.name} has been eliminated by your Constitution card!")
+                        print(f"  -> {target.name} has been eliminated by your Focused action!")
                         self.active_players.remove(target)
-                        # Adjust current_player_index if needed.
                         if self.current_player_index >= len(self.active_players):
                             self.current_player_index = 0
             else:
                 player.extra_life_rounds = 3
-                print("  -> Constitution activated: You gain an extra life for the next 3 rounds!")
-        elif card.name == "Peek at Chamber":
+                print("  -> Focused action activated: You gain an extra life for the next 3 rounds!")
+        elif card.name == "Domain Expansion: Casino":
+            # If played twice in a row, force everyone to discard and redraw.
+            if self.last_card_played and self.last_card_played.name == "Domain Expansion: Casino":
+                for p in self.active_players:
+                    num_cards = len(p.hand)
+                    p.hand = self.deck.draw(num_cards)
+                    print(f"  -> {p.name}'s hand has been discarded and redrawn!")
+                print("  -> Domain Expansion: Casino activated twice in a row! Everyone's hand has been reshuffled!")
+            else:
+                print("  -> Domain Expansion: Casino played. Play it again consecutively to force a hand reshuffle!")
+        elif card.name == "Peek’ n see":
             chamber = self.revolver.current_chamber
             status = "loaded" if self.revolver.chambers[chamber] else "empty"
             print(f"  -> You peek at the chamber: Chamber {chamber} is {status}.")
-        elif card.name == "Swap Hand with Player":
+        elif card.name == "Gimme those":
             target = self.choose_target(player, "Choose a player to swap hands with: ")
             if target:
                 if target.block_active:
@@ -246,26 +236,26 @@ class Game:
                 else:
                     player.hand, target.hand = target.hand, player.hand
                     print(f"  -> You swapped hands with {target.name}!")
-        elif card.name == "Skip":
+        elif card.name == "Nope":
             print(f"  -> {player.name} has chosen to skip pulling the trigger this turn.")
             return "skip"
-        elif card.name == "Add Bullet":
+        elif card.name == "Just 1 more":
             if self.revolver.add_bullet():
                 print("  -> A bullet has been added to the revolver!")
             else:
                 print("  -> The revolver is full! No bullet was added.")
-        elif card.name == "Add 2 Bullet":
+        elif card.name == "Bullets!!!":
             added = 0
             for _ in range(2):
                 if self.revolver.add_bullet():
                     added += 1
             print(f"  -> {added} bullet(s) have been added to the revolver!")
-        elif card.name == "Remove Bullet":
+        elif card.name == "Get that out of here":
             if self.revolver.remove_bullet():
                 print("  -> A bullet has been removed from the revolver!")
             else:
                 print("  -> There were no bullets to remove!")
-        elif card.name == "Add Bullet Next Turn":
+        elif card.name == "Another just for you":
             target = self.choose_target(player, "Choose a target for +1 bullet next turn: ")
             if target:
                 if target.block_active:
@@ -274,7 +264,7 @@ class Game:
                 else:
                     target.pending_bullet_modifier += 1
                     print(f"  -> {target.name}'s chamber will have +1 bullet added next turn!")
-        elif card.name == "Add 2 Bullet Next Turn":
+        elif card.name == "And you get a bullet and you get a bullet and you….": 
             target = self.choose_target(player, "Choose a target for +2 bullets next turn: ")
             if target:
                 if target.block_active:
@@ -283,7 +273,7 @@ class Game:
                 else:
                     target.pending_bullet_modifier += 2
                     print(f"  -> {target.name}'s chamber will have +2 bullets added next turn!")
-        elif card.name == "Remove Bullet Next Turn":
+        elif card.name == "You owe me…":
             target = self.choose_target(player, "Choose a target for -1 bullet next turn: ")
             if target:
                 if target.block_active:
@@ -292,18 +282,17 @@ class Game:
                 else:
                     target.pending_bullet_modifier -= 1
                     print(f"  -> {target.name}'s chamber will have 1 bullet removed next turn!")
-        elif card.name == "Safe Trigger Pull":
+        elif card.name == "Can’t touch this":
             player.safe_trigger = True
-            print("  -> Safe Trigger Pull activated! You will be immune to a bullet this turn.")
-        elif card.name == "Reverse Order":
+            print("  -> Can’t touch this activated! You will be immune to a bullet this turn.")
+        elif card.name == "Reverse":
             self.active_players.reverse()
-            # Adjust current_player_index so the current player stays the same.
             self.current_player_index = self.active_players.index(player)
             print("  -> The order of play is reversed!")
-        elif card.name == "Play 2 Cards Next Round":
+        elif card.name == "Ambidextrous":
             player.extra_cards_next_round = 2
-            print("  -> Next round, you may play 2 cards!")
-        elif card.name == "Choose Bullet Order":
+            print("  -> Ambidextrous activated: Next round, you may play 2 cards!")
+        elif card.name == "Master of fate":
             try:
                 choice = int(input(f"Enter a chamber index (0-{self.revolver.num_chambers - 1}) to set as next: "))
                 if 0 <= choice < self.revolver.num_chambers:
@@ -313,17 +302,16 @@ class Game:
                     print("  -> Invalid index. No changes made.")
             except ValueError:
                 print("  -> Invalid input. No changes made.")
-        elif card.name == "Force Next Player to Fire Again":
-            # Find the next player in order.
+        elif card.name == "No balls":
             if len(self.active_players) > 1:
                 next_index = (self.current_player_index + 1) % len(self.active_players)
                 target = self.active_players[next_index]
                 target.forced_extra_turn = True
                 print(f"  -> {target.name} will be forced to pull the trigger again after their turn!")
-        elif card.name == "Block Card":
+        elif card.name == "Enhanced nope":
             player.block_active = True
-            print("  -> Block activated! Your next targeted card effect will be blocked.")
-        elif card.name == "Force Chosen Player to Fire Instead":
+            print("  -> Enhanced nope activated! Your next targeted card effect will be blocked.")
+        elif card.name == "Give Jimmy a chance":
             target = self.choose_target(player, "Choose a player to force to fire: ")
             if target:
                 if target.block_active:
@@ -334,12 +322,10 @@ class Game:
                     result = self.resolve_trigger(target)
                     if result == "eliminated":
                         self.active_players.remove(target)
-                        # Adjust current_player_index if necessary.
                         if self.current_player_index >= len(self.active_players):
                             self.current_player_index = 0
-                    # End current player's turn.
                     return "forced"
-        elif card.name == "Look at Player Hand":
+        elif card.name == "Whatcha u’ got of there":
             target = self.choose_target(player, "Choose a player to look at their hand: ")
             if target:
                 if target.block_active:
@@ -349,7 +335,7 @@ class Game:
                     print(f"  -> {target.name}'s hand:")
                     for c in target.hand:
                         print(f"     - {c.name}")
-        elif card.name == "Steal Card":
+        elif card.name == "I think I’ll be take this":
             target = self.choose_target(player, "Choose a player to steal a card from: ")
             if target:
                 if target.block_active:
@@ -363,8 +349,8 @@ class Game:
                         print(f"  -> You stole a card from {target.name}!")
                     else:
                         print(f"  -> {target.name} has no cards to steal.")
-        elif card.name == "Force Reshuffle Hand":
-            target = self.choose_target(player, "Choose a player to force a reshuffle of their hand: ")
+        elif card.name == "Let’s go gambling":
+            target = self.choose_target(player, "Choose a player to force a hand discard: ")
             if target:
                 if target.block_active:
                     print(f"  -> {target.name} blocked the reshuffle!")
@@ -372,30 +358,16 @@ class Game:
                 else:
                     num_cards = len(target.hand)
                     target.hand = self.deck.draw(num_cards)
-                    print(f"  -> {target.name}'s hand has been reshuffled!")
-        elif card.name == "Duplicate Last Card":
-            if self.last_card_played and self.last_card_played.name != "Duplicate Last Card":
-                print(f"  -> Duplicating the effect of {self.last_card_played.name}!")
-                # Apply the last card’s effect again.
+                    print(f"  -> {target.name}'s hand has been discarded and redrawn!")
+        elif card.name == "Anotha’ time":
+            if self.last_card_played and self.last_card_played.name != "Anotha’ time":
+                print(f"  -> Replicating the effect of {self.last_card_played.name}!")
                 self.apply_card_effect(self.last_card_played, player)
             else:
-                print("  -> No valid last card to duplicate.")
-        elif card.name == "Extra Draw":
-            extra = self.deck.draw(2)
-            player.hand.extend(extra)
-            print("  -> You draw 2 extra cards!")
-        elif card.name == "Lucky Charm":
-            player.lucky_charm = True
-            print("  -> Lucky Charm activated! A coin toss may save you from a bullet.")
-        elif card.name == "Miracle":
-            player.miracle = True
-            print("  -> Miracle activated! A bullet might disintegrate if it fires.")
-        else:
-            print("  -> (No effect)")
+                print("  -> No valid last card to replicate.")
         return None
 
     def next_player(self):
-        # Move to the next active player.
         self.current_player_index = (self.current_player_index + 1) % len(self.active_players)
 
     def play(self):
@@ -431,9 +403,8 @@ class Game:
                         card = current_player.hand.pop(card_index)
                         print(f"  You play {card.name}.")
                         effect = self.apply_card_effect(card, current_player)
-                        # If the card effect returns "skip" or "forced", skip trigger pull.
                         if effect in ("skip", "forced"):
-                            # After a skipped turn, go to the next player.
+                            current_player.refill_hand(self.deck)
                             self.next_player()
                             round_count += 1
                             continue
@@ -460,6 +431,7 @@ class Game:
                             print(f"  You play {card.name}.")
                             effect = self.apply_card_effect(card, current_player)
                             if effect in ("skip", "forced"):
+                                current_player.refill_hand(self.deck)
                                 self.next_player()
                                 round_count += 1
                                 continue
@@ -481,14 +453,14 @@ class Game:
                             print(f"  You play {card.name}.")
                             effect = self.apply_card_effect(card, current_player)
                             if effect in ("skip", "forced"):
-                                break  # End extra plays if the turn is skipped/forced.
+                                # If an extra play forces a skip/forced, break out.
+                                break
                         else:
                             print("  Invalid index; no card played.")
                     except ValueError:
                         print("  Invalid input; no card played.")
                 else:
                     break
-                # Use up one extra play.
                 current_player.extra_cards_next_round -= 1
 
             # --- Trigger Pull (Normal) ---
@@ -498,9 +470,8 @@ class Game:
                 if not self.active_players:
                     print("All players have been eliminated!")
                     break
-                # Adjust current_player_index if needed.
                 self.current_player_index %= len(self.active_players)
-            # If the player survived, check for any forced extra turn.
+                # No need to refill hand for an eliminated player.
             elif current_player.forced_extra_turn:
                 print(f"  -> {current_player.name} is forced to pull the trigger again!")
                 current_player.forced_extra_turn = False
@@ -514,12 +485,10 @@ class Game:
                     round_count += 1
                     continue
 
-            # Clear one-turn effects that weren’t used.
-            current_player.lucky_charm = False
             current_player.safe_trigger = False
-            current_player.miracle = False
-
             time.sleep(1)
+            # Refill the player's hand so it always has 4 cards.
+            current_player.refill_hand(self.deck)
             self.next_player()
             round_count += 1
 
